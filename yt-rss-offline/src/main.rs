@@ -27,55 +27,49 @@ use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 
 use std::process::Stdio;
 
+mod functions;
+
 // How to get rss from a channel https://pl.unedose.fr/article/how-to-create-an-rss-feed-for-any-youtube-channel
 // https://www.youtube.com/feeds/videos.xml?channel_id=
 // Get ID https://stackoverflow.com/questions/14366648/how-can-i-get-a-channel-id-from-youtube
 
 fn main() {
     env_logger::init();
-    // Getting links from a file
-    let file_name: String = String::from("yt-rss.opml");
-    let mut file = File::open(file_name.clone()).unwrap();
-    let document = OPML::from_reader(&mut file).unwrap();
 
-    let mut links: Vec<String> = Vec::new(); // variable to get all xml links from all sub directories etc.
-    print!("[ ] Getting Links from {}", &file_name);
-    stdout().flush();
+    // Get command line arguments
+    let mut cliarg: Vec<String> = env::args().collect();
+    cliarg.remove(0);
+    let mut cliarg_iter = cliarg.iter();
 
-    for outline in &document.body.outlines {
-        find_links(outline, &mut links);
+    // Set main variables
+    let mut file_name = String::from("yt-rss.opml"); // Default file name
+
+    // Set command line arguments "catchers"
+    let file_name_argument: String = String::from("--file-name"); // argument to choose file
+
+    // run through given arguments
+    let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
+    for cliarg in cliarg_iter.clone() {
+        // To many clone()
+        count_iterator = count_iterator + 1;
+        if cliarg == &file_name_argument {
+            file_name = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
+        }
     }
-    println!("\r[✓] Getting Links from {}", &file_name);
-    debug!("links xml: {:?}", links);
-    stdout().flush();
-    //
 
-    // Checking if links are good
-    print!("[ ] Validating Links");
-    stdout().flush();
+    // Get XML links from file
+    let mut links: Vec<String> = functions::get_links_file(file_name);
+
+    // Checking if links are good, becouse if not wget will get a loop
     let mut links_checked: Vec<String> = Vec::new();
     let mut links_broken: Vec<String> = Vec::new();
     let mut links_error: bool = false;
-    for link in links.clone() {
-        if link.contains("https://www.youtube.com/feeds/videos.xml?channel_id=") == true {
-            links_checked.push(link);
-        } else {
-            links_broken.push(link);
-            links_error = true;
-        }
-    }
-    if links_error == true {
-        println!("\r[𐄂] Validating Links");
-        println!("Links that are broken:");
-        for link_brk in links_broken {
-            println!("{}", link_brk);
-        }
-        println!("exiting");
-        exit(9);
-    } else {
-        println!("\r[✓] Validating Links");
-    }
-    //
+
+    let var_func =
+        functions::validate_links(links.clone(), links_checked, links_broken, links_error);
+    links_checked = var_func.0;
+    links_broken = var_func.1;
+    links_error = var_func.2;
 
     // Downloading links from file
     let download_information: String = String::from("XML Download progress");
@@ -261,35 +255,4 @@ fn progress_bar(string: &String, progres: i32) {
     }
     print!("]");
     stdout().flush();
-}
-
-fn find_links(outline: &Outline, links: &mut Vec<String>) {
-    match outline.xml_url.clone() {
-        Some(x) => links.push(x),
-        None => {
-            // Here if xml_url doesnt exist and its not a folder then the loop will not work even one becouse &outline.outlines is []
-            for subfolder in &outline.outlines {
-                find_links(subfolder, links);
-            }
-        }
-    }
-    // Old  function based ot type. its better to just check if xml_url exists, if not then its a folder
-    /*
-    if outline.r#type == Some("folder".to_string()) || outline.r#type == None {
-        debug!("folder detected");
-        for nextitem in &outline.outlines {
-            debug!("nextitem {:?}", nextitem);
-            find_links(nextitem, links);
-        }
-    } else {
-        debug!("feed detected");
-        debug!("{:?}", outline);
-        let xml = outline.xml_url.clone();
-        debug!("XML IS: {:?}", xml);
-        match xml {
-            Some(x) => links.push(x),
-            None => debug!("xml_url is None"),
-        }
-    }
-    */
 }
