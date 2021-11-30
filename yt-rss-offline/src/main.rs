@@ -70,71 +70,11 @@ fn main() {
     links_checked = var_func.0;
     links_broken = var_func.1;
     links_error = var_func.2;
+    drop(links); // It is not needed more becouse everything is in links_x
 
-    // Downloading links from file
-    let download_information: String = String::from("XML Download progress");
+    // Download XML iles
+    let path_links: String = String::from("/tmp/links");
 
-    let path_links: String = String::from("./links");
-    if Path::new(&path_links).exists() == true {
-        fs::remove_dir_all(&path_links);
-        fs::create_dir_all(&path_links);
-    } else {
-        fs::create_dir_all(&path_links);
-    }
-    env::set_current_dir(&path_links).is_ok();
-
-    let mut count_downloaded: usize = 0;
-    let count_links: usize = links.iter().count() - 1;
-    let progress_10 = count_links * 10 / 100;
-    let progress_20 = count_links * 20 / 100;
-    let progress_30 = count_links * 30 / 100;
-    let progress_40 = count_links * 40 / 100;
-    let progress_50 = count_links * 50 / 100;
-    let progress_60 = count_links * 60 / 100;
-    let progress_70 = count_links * 70 / 100;
-    let progress_80 = count_links * 80 / 100;
-    let progress_90 = count_links * 90 / 100;
-
-    // Check if wget exists
-    if command_exists("wget".to_string()) == false {
-        println!("\r[𐄂] command \"wget\" not found, exiting");
-        exit(9);
-    }
-    //
-
-    for link in links {
-        let process = Command::new("wget")
-            .args(&["-q", &link])
-            .output()
-            .expect("wget command failed to start");
-        count_downloaded = count_downloaded + 1;
-        if count_downloaded == progress_10 {
-            progress_bar(&download_information, 1)
-        } else if count_downloaded == progress_20 {
-            progress_bar(&download_information, 2)
-        } else if count_downloaded == progress_30 {
-            progress_bar(&download_information, 3)
-        } else if count_downloaded == progress_40 {
-            progress_bar(&download_information, 4)
-        } else if count_downloaded == progress_50 {
-            progress_bar(&download_information, 5)
-        } else if count_downloaded == progress_60 {
-            progress_bar(&download_information, 6)
-        } else if count_downloaded == progress_70 {
-            progress_bar(&download_information, 7)
-        } else if count_downloaded == progress_80 {
-            progress_bar(&download_information, 8)
-        } else if count_downloaded == progress_90 {
-            progress_bar(&download_information, 9)
-        } else if count_downloaded == count_links {
-            print!("\r");
-            for x in 0..50 {
-                print!(" ");
-            }
-            println!("\r[✓] {}", download_information);
-        }
-    }
-    //
 
     // Creating download directory
     let path_download: String = String::from("./download");
@@ -226,33 +166,4 @@ fn download_yt(link: &String) {
         .expect("command failed to start");
 
     process.wait();
-}
-
-fn command_exists(command: String) -> bool {
-    let path_1: String = format!("/bin/{}", command);
-    let path_2: String = format!("/usr/bin/{}", command);
-    if Path::new(&path_1).exists() == true {
-        return true;
-    } else if Path::new(&path_2).exists() == true {
-        return true;
-    }
-    false
-}
-
-fn progress_bar(string: &String, progres: i32) {
-    print!("\r{}", string);
-    print!(" [");
-    for x in 1..progres + 1 {
-        if x == progres {
-            print!(">");
-        } else {
-            print!("-");
-        }
-    }
-    let missing_progres = 11 - progres;
-    for x in 1..missing_progres {
-        print!("#");
-    }
-    print!("]");
-    stdout().flush();
 }
