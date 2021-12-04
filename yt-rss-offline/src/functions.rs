@@ -40,12 +40,12 @@ pub fn get_links_file(file_name: String) -> Vec<String> {
 
     let mut links: Vec<String> = Vec::new(); // variable to get all xml links from all sub directories etc.
     let out_string: String = "Getting Links from".to_string();
-    output(0, &format!("Getting Links from {}", &file_name), false, false);
+    output(0, &format!("{} {}", out_string, &file_name), false, false);
 
     for outline in &document.body.outlines {
         find_links_loop(outline, &mut links);
     }
-    output(1, &format!("Getting Links from {}", &file_name), true, true);
+    output(1, &format!("{} {}", out_string, &file_name), true, true);
     debug!("links xml: {:?}", links);
     links
 }
@@ -79,6 +79,80 @@ fn find_links_loop(outline: &Outline, links: &mut Vec<String>) {
         }
     }
     */
+}
+
+// Gets categories from a OPML file
+#[derive(Debug, Clone)]
+pub struct category {
+    name: String,
+    children: Vec<category>,
+    links: Vec<String>,
+}
+
+pub fn get_categories(file_name: String) {
+    let mut file = File::open(file_name.clone()).unwrap();
+    let document = OPML::from_reader(&mut file).unwrap();
+    let out_string: String = "Getting categories from".to_string();
+    output(0, &format!("{} {}", out_string, &file_name), false, false);
+
+    let mut categories = file_loop(document, "Main".to_string());
+
+    //debug!("{:?}", categories);
+
+    output(1, &format!("{} {}", out_string, &file_name), true, true);
+    //debug!("links xml: {:?}", links);
+}
+
+fn file_loop(document: OPML, category_name: String) {
+    let mut categories = category {
+        name: category_name,
+        children: Vec::new(),
+        links: outlines_loop_get_links(document.body.outlines.clone()),
+    };
+
+    for outline in &document.body.outlines {
+        match outline.r#type.clone() {
+            Some(out_type) => {
+                if out_type == "category" || out_type == "folder" {
+                    categories.children.push(outlines_loop_categories(outline.outlines.clone(), outline.text.clone()));
+                }
+            }
+            None => {}
+        }
+    }
+    debug!("{:#?}", categories);
+}
+
+fn outlines_loop_get_links(outlines: Vec<Outline>) -> Vec<String> {
+    let mut links: Vec<String> = Vec::new();
+
+    for outline in outlines {
+        match outline.xml_url.clone() {
+            Some(x) => links.push(x),
+            None => {}
+        }
+    }
+    links
+}
+
+fn outlines_loop_categories(outlines: Vec<Outline>, category_name: String) -> category {
+    let mut categories = category {
+        name: category_name,
+        children: Vec::new(),
+        links: outlines_loop_get_links(outlines.clone()),
+    };
+    
+    for outline in outlines {
+        match outline.r#type.clone() {
+            Some(out_type) => {
+                if out_type == "category" || out_type == "folder" {
+                    categories.children.push(outlines_loop_categories(outline.outlines.clone(), outline.text.clone()));
+                }
+            }
+            None => {}
+        }
+    }
+    categories
 }
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
@@ -252,13 +326,23 @@ pub fn download_videos(path_links: String, path_download: String) {
                 .num_minutes();
             if duration > 0 {
                 for video_title in entry.title {
-                    output(0, &format!("Downloading video: \"{}\"", &video_title.content), false, false);
+                    output(
+                        0,
+                        &format!("Downloading video: \"{}\"", &video_title.content),
+                        false,
+                        false,
+                    );
                     for link in &entry.links {
                         // Idk why its a vector but ok
                         debug!("video link: {:?}", link.href);
                         download_yt(&link.href);
                     }
-                    output(1, &format!("Downloaded video: \"{}\"", &video_title.content), true, true);
+                    output(
+                        1,
+                        &format!("Downloaded video: \"{}\"", &video_title.content),
+                        true,
+                        true,
+                    );
                 }
             }
         }

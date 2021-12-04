@@ -45,11 +45,16 @@ fn main() {
     cliarg.remove(0);
     let mut cliarg_iter = cliarg.iter();
 
-    // Set main variables
-    let mut file_name = String::from("yt-rss.opml"); // Default file name
-
+    // Set main variables, here are defaults
+    let mut file_name = String::from("yt-rss.opml");
+    let mut path_links: String = String::from("/tmp/links");
+    let mut path_download: String = String::from("./download");
+    
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
+    let path_links_argument: String = String::from("--links-directory"); // argument to choose where to store links
+    let path_download_argument: String = String::from("--download-directory"); // argument to choose where to store videos
+
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -59,10 +64,20 @@ fn main() {
         if cliarg == &file_name_argument {
             file_name = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
+        if cliarg == &path_links_argument {
+            path_links = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
+        }
+        if cliarg == &path_download_argument {
+            path_download = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
+        }
     }
 
     // Get XML links from file
-    let mut links: Vec<String> = functions::get_links_file(file_name);
+    //let mut links: Vec<String> = functions::get_links_file(file_name);
+    functions::get_categories(file_name);
+
+
+    /*
 
     // Checking if links are good, becouse if not wget will get a loop
     let mut links_checked: Vec<String> = Vec::new();
@@ -77,11 +92,11 @@ fn main() {
     drop(links); // It is not needed more becouse everything is in links_x
 
     // Download XML iles
-    let path_links: String = String::from("/tmp/links");
     functions::download_xml(links_checked, path_links.clone());
 
     // Download videos
-    let path_download: String = String::from("./download");
     download_videos(path_links, path_download);
+    
+    */
 }
 
