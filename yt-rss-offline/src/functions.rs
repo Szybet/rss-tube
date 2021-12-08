@@ -33,128 +33,6 @@ use crossterm::style::{
 };
 use crossterm::{execute, Result};
 
-// Loads the .opml file and reads it
-pub fn get_links_file(file_name: String) -> Vec<String> {
-    let mut file = File::open(file_name.clone()).unwrap();
-    let document = OPML::from_reader(&mut file).unwrap();
-
-    let mut links: Vec<String> = Vec::new(); // variable to get all xml links from all sub directories etc.
-    let out_string: String = "Getting Links from".to_string();
-    output(0, &format!("{} {}", out_string, &file_name), false, false);
-
-    for outline in &document.body.outlines {
-        find_links_loop(outline, &mut links);
-    }
-    output(1, &format!("{} {}", out_string, &file_name), true, true);
-    debug!("links xml: {:?}", links);
-    links
-}
-
-fn find_links_loop(outline: &Outline, links: &mut Vec<String>) {
-    match outline.xml_url.clone() {
-        Some(x) => links.push(x),
-        None => {
-            // Here if xml_url doesnt exist and its not a folder then the loop will not work even one becouse &outline.outlines is []
-            for subfolder in &outline.outlines {
-                find_links_loop(subfolder, links);
-            }
-        }
-    }
-    // Old  function based ot type. its better to just check if xml_url exists, if not then its a folder
-    /*
-    if outline.r#type == Some("folder".to_string()) || outline.r#type == None {
-        debug!("folder detected");
-        for nextitem in &outline.outlines {
-            debug!("nextitem {:?}", nextitem);
-            find_links(nextitem, links);
-        }
-    } else {
-        debug!("feed detected");
-        debug!("{:?}", outline);
-        let xml = outline.xml_url.clone();
-        debug!("XML IS: {:?}", xml);
-        match xml {
-            Some(x) => links.push(x),
-            None => debug!("xml_url is None"),
-        }
-    }
-    */
-}
-
-// Gets categories from a OPML file
-#[derive(Debug, Clone)]
-pub struct category {
-    name: String,
-    children: Vec<category>,
-    links: Vec<String>,
-}
-
-pub fn get_categories(file_name: String) {
-    let mut file = File::open(file_name.clone()).unwrap();
-    let document = OPML::from_reader(&mut file).unwrap();
-    let out_string: String = "Getting categories from".to_string();
-    output(0, &format!("{} {}", out_string, &file_name), false, false);
-
-    let mut categories = file_loop(document, "Main".to_string());
-
-    //debug!("{:?}", categories);
-
-    output(1, &format!("{} {}", out_string, &file_name), true, true);
-    //debug!("links xml: {:?}", links);
-}
-
-fn file_loop(document: OPML, category_name: String) {
-    let mut categories = category {
-        name: category_name,
-        children: Vec::new(),
-        links: outlines_loop_get_links(document.body.outlines.clone()),
-    };
-
-    for outline in &document.body.outlines {
-        match outline.r#type.clone() {
-            Some(out_type) => {
-                if out_type == "category" || out_type == "folder" {
-                    categories.children.push(outlines_loop_categories(outline.outlines.clone(), outline.text.clone()));
-                }
-            }
-            None => {}
-        }
-    }
-    debug!("{:#?}", categories);
-}
-
-fn outlines_loop_get_links(outlines: Vec<Outline>) -> Vec<String> {
-    let mut links: Vec<String> = Vec::new();
-
-    for outline in outlines {
-        match outline.xml_url.clone() {
-            Some(x) => links.push(x),
-            None => {}
-        }
-    }
-    links
-}
-
-fn outlines_loop_categories(outlines: Vec<Outline>, category_name: String) -> category {
-    let mut categories = category {
-        name: category_name,
-        children: Vec::new(),
-        links: outlines_loop_get_links(outlines.clone()),
-    };
-    
-    for outline in outlines {
-        match outline.r#type.clone() {
-            Some(out_type) => {
-                if out_type == "category" || out_type == "folder" {
-                    categories.children.push(outlines_loop_categories(outline.outlines.clone(), outline.text.clone()));
-                }
-            }
-            None => {}
-        }
-    }
-    categories
-}
-
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
     links: Vec<String>,
@@ -185,6 +63,7 @@ pub fn validate_links(
     }
     return (links_checked, links_broken, links_error);
 }
+
 pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     // Downloading links from file
     let download_information: String = String::from("XML Download progress");

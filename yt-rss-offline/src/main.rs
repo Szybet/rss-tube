@@ -29,6 +29,7 @@ use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use std::process::Stdio;
 
 mod functions;
+mod parse_opml;
 
 
 
@@ -74,9 +75,12 @@ fn main() {
 
     // Get XML links from file
     //let mut links: Vec<String> = functions::get_links_file(file_name);
-    functions::get_categories(file_name);
-
-
+    let mut nw = parse_opml::get_categories(file_name);
+    debug!("{:#?}", &nw);
+    let veccc: Vec<String> = vec!["Polska".to_string(), "Tech".to_string()];
+    let test = parse_opml::unpack_categories(nw, veccc);
+    debug!("hmmmmmmmmmm   {:#?}", &test);
+    
     /*
 
     // Checking if links are good, becouse if not wget will get a loop
