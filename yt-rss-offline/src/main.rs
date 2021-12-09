@@ -50,12 +50,16 @@ fn main() {
     let mut file_name = String::from("yt-rss.opml");
     let mut path_links: String = String::from("/tmp/links");
     let mut path_download: String = String::from("./download");
+    let mut requested_categories: Vec<String> = vec!["Main".to_string()];
+
     
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
     let path_links_argument: String = String::from("--links-directory"); // argument to choose where to store links
     let path_download_argument: String = String::from("--download-directory"); // argument to choose where to store videos
-
+    let requested_categories_argument: String = String::from("--set-categories"); // argument to choose categories for links from the file
+    // after this argument there should be: "category1,category2,category3"
+    
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -71,18 +75,16 @@ fn main() {
         if cliarg == &path_download_argument {
             path_download = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
+        if cliarg == &requested_categories_argument {
+            requested_categories = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string());
+        }
     }
 
     // Get XML links from file
-    //let mut links: Vec<String> = functions::get_links_file(file_name);
-    let mut nw = parse_opml::get_categories(file_name);
-    debug!("{:#?}", &nw);
-    let veccc: Vec<String> = vec!["Polska".to_string(), "Tech".to_string()];
-    let test = parse_opml::unpack_categories(nw, veccc);
-    debug!("hmmmmmmmmmm   {:#?}", &test);
+    let mut file_to_struct = parse_opml::get_categories(file_name);
+    //debug!("{:#?}", &file_to_struct);
+    let links = parse_opml::unpack_categories(file_to_struct, requested_categories);
     
-    /*
-
     // Checking if links are good, becouse if not wget will get a loop
     let mut links_checked: Vec<String> = Vec::new();
     let mut links_broken: Vec<String> = Vec::new();
@@ -101,6 +103,5 @@ fn main() {
     // Download videos
     download_videos(path_links, path_download);
     
-    */
 }
 

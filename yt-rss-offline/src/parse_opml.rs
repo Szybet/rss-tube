@@ -48,13 +48,13 @@ pub fn get_categories(file_name: String) -> category {
     let mut file = File::open(file_name.clone()).unwrap();
     let document = OPML::from_reader(&mut file).unwrap();
     let out_string: String = "Getting categories from".to_string();
-    output(0, &format!("{} {}", out_string, &file_name), false, false);
+    output(0, &format!("{} {}", out_string, &file_name), false, false, false);
 
     let mut categories: category = file_loop(document, "Main".to_string());
 
     //debug!("{:?}", categories);
 
-    output(1, &format!("{} {}", out_string, &file_name), true, true);
+    output(1, &format!("{} {}", out_string, &file_name), true, true, false);
     categories
 }
 
@@ -119,6 +119,7 @@ fn outlines_loop_categories(outlines: Vec<Outline>, category_name: String) -> ca
 }
 
 // Get links from specified categories
+// Well it does not work correctly if two cattegories have the same name... ugh
 pub fn unpack_categories(
     mut category_main: category,
     categories_names: Vec<String>,

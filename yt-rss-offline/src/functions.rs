@@ -12,7 +12,7 @@ use std::thread::sleep;
 use std::io::stdout;
 use std::io::Write;
 
-use std::{thread, time};
+use std::{thread, time, vec};
 
 use std::process::{exit, Command};
 
@@ -28,10 +28,10 @@ use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use std::process::Stdio;
 
 use crossterm::style::Stylize;
-use crossterm::style::{
-    Attribute, Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor,
+use crossterm::{
+    cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition},
+    execute, ExecutableCommand, Result,
 };
-use crossterm::{execute, Result};
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -41,7 +41,7 @@ pub fn validate_links(
     mut links_error: bool,
 ) -> (Vec<String>, Vec<String>, bool) {
     let out_string: String = "Validating Links".to_string();
-    output(0, &out_string, false, false);
+    output(0, &out_string, false, false, false);
     for link in links {
         if link.contains("https://www.youtube.com/feeds/videos.xml?channel_id=") == true {
             links_checked.push(link);
@@ -51,7 +51,7 @@ pub fn validate_links(
         }
     }
     if links_error == true {
-        output(2, &out_string, true, true);
+        output(2, &out_string, true, true, false);
         println!("Links that are broken:");
         for link_brk in links_broken {
             println!("{}", link_brk);
@@ -59,7 +59,7 @@ pub fn validate_links(
         println!("exiting");
         exit(9);
     } else {
-        output(1, &out_string, true, true);
+        output(1, &out_string, true, true, false);
     }
     return (links_checked, links_broken, links_error);
 }
@@ -121,7 +121,7 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
             for x in 0..50 {
                 print!(" ");
             }
-            output(1, &download_information, true, true);
+            output(1, &download_information, true, true, false);
         }
     }
     env::set_current_dir(return_path);
@@ -133,13 +133,19 @@ pub fn command_exists(command: String) {
     if Path::new(&path_1).exists() == true {
     } else if Path::new(&path_2).exists() == true {
     } else {
-        output(2, &format!("Command {} not found", &command), true, true);
+        output(
+            2,
+            &format!("Command {} not found", &command),
+            true,
+            true,
+            false,
+        );
         exit(9);
     }
 }
 
 fn progress_bar(string: &String, progres: i32) {
-    output(0, string, false, true);
+    output(0, string, false, true, false);
     print!(" [");
     for x in 1..progres + 1 {
         if x == progres {
@@ -183,13 +189,12 @@ pub fn download_videos(path_links: String, path_download: String) {
         debug!("xml files: {:?}", file_name);
         let xml_file = fs::read_to_string(file_name).unwrap();
         let feed = parser::parse(xml_file.as_bytes()).unwrap();
-
         let title = feed.title.unwrap().content;
-        println!("Downloading videos for channel: \"{}\":", title);
+        let status_channel: String =
+            String::from(format!("Downloading videos for channel: \"{}\":", title));
 
-        fs::create_dir_all(&title);
-        env::set_current_dir(&title).is_ok();
-
+        let mut showed_beginning_status: bool = false;
+        let return_path_download = env::current_dir().unwrap(); // To use later to return to download directory
         for entry in feed.entries {
             //debug!("{:?}", entry.links);
             //debug!("{:?}", entry.published);
@@ -204,28 +209,53 @@ pub fn download_videos(path_links: String, path_download: String) {
                 .signed_duration_since(time)
                 .num_minutes();
             if duration > 0 {
+                if showed_beginning_status == false {
+                    // shows once the beginning ONLY if there are videos THAT are posted on specified time and need to be downloaded
+                    output(3, &status_channel, true, true, true);
+                    fs::create_dir_all(&title);
+                    env::set_current_dir(&title).is_ok(); // also create the directory once
+                    showed_beginning_status = true;
+                }
                 for video_title in entry.title {
+                    let mut video_tittle: String = String::new();
+                    let mut countit: usize = 0;
+                    let max_chars = 50; // There is a better way to do it counting how many characters a line in terminal fits
+                    if &video_title.content.chars().count() > &max_chars {
+                        for chars in video_title.content.chars() {
+                            if countit < max_chars {
+                                countit = countit + 1;
+                                video_tittle.push(chars);
+                            }
+                        }
+                        video_tittle.push_str("...");
+                    } else {
+                        video_tittle = video_title.content.clone();
+                    }
                     output(
                         0,
-                        &format!("Downloading video: \"{}\"", &video_title.content),
+                        &format!("Downloading video: \"{}\"", video_tittle),
+                        false,
                         false,
                         false,
                     );
                     for link in &entry.links {
                         // Idk why its a vector but ok
-                        debug!("video link: {:?}", link.href);
+                        //debug!("video link: {:?}", link.href);
                         download_yt(&link.href);
                     }
+                    //stdout().execute(crossterm::cursor::MoveUp(1));
+
                     output(
                         1,
-                        &format!("Downloaded video: \"{}\"", &video_title.content),
+                        &format!("Downloaded video: \"{}\"", video_tittle),
                         true,
                         true,
+                        false,
                     );
                 }
             }
         }
-        env::set_current_dir("../").is_ok();
+        env::set_current_dir(return_path_download).is_ok(); // No idea why ../ does not work
     }
     env::set_current_dir(return_path);
 }
@@ -237,6 +267,7 @@ fn download_yt(link: &String) {
             "-i",
             "--no-playlist",
             "-q",
+            "--no-simulate",
             "--progress",
             "-f",
             "mp4,res:480",
@@ -252,8 +283,8 @@ fn download_yt(link: &String) {
     process.wait();
 }
 
-pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool) {
-    // mark = 0 loading, mark = 1 true, mark = 2 false
+pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool, colored: bool) {
+    // mark = 0 loading, mark = 1 true, mark = 2 false, mark = 3 nothing,
     // https://docs.rs/crossterm/0.22.1/crossterm/style/index.html
     let mut output_string = string;
 
@@ -261,6 +292,8 @@ pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool) {
         print!("\r");
     }
     let mut mark_letter: String = String::new();
+    let mut letter_1: String = String::from("[");
+    let mut letter_2: String = String::from("]");
 
     if mark == 0 {
         mark_letter = " ".to_string();
@@ -268,18 +301,41 @@ pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool) {
         mark_letter = "✓".to_string();
     } else if mark == 2 {
         mark_letter = "𐄂".to_string();
+    } else if mark == 3 {
+        letter_1 = " ".to_string();
+        letter_2 = " ".to_string();
+        mark_letter = "".to_string();
     }
 
-    print!(
-        "{}{}{} {}",
-        "[".cyan(),
-        mark_letter.dark_red(),
-        "]".cyan(),
-        output_string
-    );
+    if colored == true {
+        print!(
+            "{}{}{} {}",
+            letter_1.cyan(),
+            mark_letter.dark_red(),
+            letter_2.cyan(),
+            output_string.clone().dark_green()
+        );
+    } else {
+        print!(
+            "{}{}{} {}",
+            letter_1.cyan(),
+            mark_letter.dark_red(),
+            letter_2.cyan(),
+            output_string
+        );
+    }
 
     if new_line == true {
         print!("\n");
     }
     stdout().flush();
+}
+
+pub fn stringto_vector(string: String) -> Vec<String> {
+    let mut vector: Vec<String> = Vec::new();
+    let mut splitted: Vec<&str> = string.split(",").collect();
+    for split in splitted {
+        vector.push(split.to_string());
+    }
+    vector
 }
