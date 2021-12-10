@@ -31,9 +31,6 @@ use std::process::Stdio;
 mod functions;
 mod parse_opml;
 
-
-
-
 // How to get rss from a channel https://pl.unedose.fr/article/how-to-create-an-rss-feed-for-any-youtube-channel
 // https://www.youtube.com/feeds/videos.xml?channel_id=
 // Get ID https://stackoverflow.com/questions/14366648/how-can-i-get-a-channel-id-from-youtube
@@ -51,6 +48,9 @@ fn main() {
     let mut path_links: String = String::from("/tmp/links");
     let mut path_download: String = String::from("./download");
     let mut requested_categories: Vec<String> = vec!["Main".to_string()];
+    // yt-dlp default arguments
+    // yt-dlp -i --no-playlist -q --progress -f 'mp4,res:480' --sponsorblock-mark all --add-chapters
+   let mut yt_dlp_sett: Vec<String> = vec!["-i".to_string(), "--no-playlist".to_string(), "-q".to_string(), "--progress".to_string(), "-f".to_string(), "mp4,res:480".to_string(), "--sponsorblock-mark".to_string(), "all".to_string(), "--add-chapters".to_string()];
 
     
     // Set command line arguments "catchers"
@@ -59,7 +59,8 @@ fn main() {
     let path_download_argument: String = String::from("--download-directory"); // argument to choose where to store videos
     let requested_categories_argument: String = String::from("--set-categories"); // argument to choose categories for links from the file
     // after this argument there should be: "category1,category2,category3"
-    
+    let yt_dlp_sett_arguments: String = String::from("--yt-dlp-arguments"); 
+    // This argument also usues "thing,thing1"
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -76,7 +77,10 @@ fn main() {
             path_download = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
         if cliarg == &requested_categories_argument {
-            requested_categories = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string());
+            requested_categories = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string()); // Parse "thing,thing1" to vector
+        }
+        if cliarg == &yt_dlp_sett_arguments {
+            yt_dlp_sett = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string()); // Parse "thing,thing1" to vector
         }
     }
 
@@ -101,7 +105,7 @@ fn main() {
     functions::download_xml(links_checked, path_links.clone());
 
     // Download videos
-    download_videos(path_links, path_download);
+    download_videos(path_links, path_download, yt_dlp_sett);
     
 }
 

@@ -162,7 +162,7 @@ fn progress_bar(string: &String, progres: i32) {
     stdout().flush();
 }
 
-pub fn download_videos(path_links: String, path_download: String) {
+pub fn download_videos(path_links: String, path_download: String, mut yt_dlp_sett: Vec<String>) {
     // Creating download directory
     let return_path = env::current_dir().unwrap(); // To use later to return to current directory
 
@@ -240,10 +240,8 @@ pub fn download_videos(path_links: String, path_download: String) {
                     );
                     for link in &entry.links {
                         // Idk why its a vector but ok
-                        //debug!("video link: {:?}", link.href);
-                        download_yt(&link.href);
+                        download_yt(&link.href, &yt_dlp_sett);
                     }
-                    //stdout().execute(crossterm::cursor::MoveUp(1));
 
                     output(
                         1,
@@ -260,8 +258,15 @@ pub fn download_videos(path_links: String, path_download: String) {
     env::set_current_dir(return_path);
 }
 
-fn download_yt(link: &String) {
-    // yt-dlp -i --no-playlist -q --progress -f 'mp4,res:480' --sponsorblock-mark all --add-chapters
+fn download_yt(link: &String, mut arguments: &Vec<String>) {    
+    arguments.push(link.clone());
+    let mut process = Command::new("yt-dlp")
+        .args(&*arguments)
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("command failed to start");
+        
+    /* 
     let mut process = Command::new("yt-dlp")
         .args(&[
             "-i",
@@ -279,7 +284,7 @@ fn download_yt(link: &String) {
         .stdin(Stdio::null())
         .spawn()
         .expect("command failed to start");
-
+        */
     process.wait();
 }
 
