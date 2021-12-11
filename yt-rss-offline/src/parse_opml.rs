@@ -1,4 +1,3 @@
-extern crate log;
 use opml::Outline;
 
 use log::info;
@@ -7,31 +6,6 @@ use pretty_env_logger::env_logger;
 
 use opml::OPML;
 use std::fs::File;
-use std::thread::sleep;
-
-use std::io::stdout;
-use std::io::Write;
-
-use std::{thread, time};
-
-use std::process::{exit, Command};
-
-use std::fs;
-
-use std::env;
-use std::path::Path;
-
-use feed_rs::parser;
-
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-
-use std::process::Stdio;
-
-use crossterm::style::Stylize;
-use crossterm::style::{
-    Attribute, Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor,
-};
-use crossterm::{execute, Result};
 
 use crate::functions::output;
 
@@ -45,16 +19,29 @@ pub struct category {
 
 // Main function for parsing the OPML file to a tree structure
 pub fn get_categories(file_name: String) -> category {
+    println!("{}", file_name);
     let mut file = File::open(file_name.clone()).unwrap();
     let document = OPML::from_reader(&mut file).unwrap();
     let out_string: String = "Getting categories from".to_string();
-    output(0, &format!("{} {}", out_string, &file_name), false, false, false);
+    output(
+        0,
+        &format!("{} {}", out_string, &file_name),
+        false,
+        false,
+        false,
+    );
 
     let mut categories: category = file_loop(document, "Main".to_string());
 
     //debug!("{:?}", categories);
 
-    output(1, &format!("{} {}", out_string, &file_name), true, true, false);
+    output(
+        1,
+        &format!("{} {}", out_string, &file_name),
+        true,
+        true,
+        false,
+    );
     categories
 }
 
@@ -125,7 +112,7 @@ pub fn unpack_categories(
     categories_names: Vec<String>,
 ) -> Vec<String> {
     let mut links: Vec<String> = Vec::new();
-    
+
     let searched_categories = search_category(category_main, categories_names);
     for categories in searched_categories {
         links.append(&mut links_subcategories(categories));

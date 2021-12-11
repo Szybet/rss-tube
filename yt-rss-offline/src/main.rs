@@ -1,32 +1,12 @@
-extern crate log;
-use functions::download_videos;
-use opml::Outline;
-
 use log::info;
 use log::{debug, error, log_enabled, Level};
 use pretty_env_logger::env_logger;
 
-use opml::OPML;
-use std::fs::File;
-use std::thread::sleep;
-
-use std::io::stdout;
-use std::io::Write;
-
-use std::{thread, time};
-
-use std::process::{exit, Command};
-
-use std::fs;
+use std::process::exit;
 
 use std::env;
-use std::path::Path;
 
-use feed_rs::parser;
-
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-
-use std::process::Stdio;
+use chrono::{TimeZone, Utc};
 
 mod functions;
 mod parse_opml;
@@ -34,6 +14,8 @@ mod parse_opml;
 // How to get rss from a channel https://pl.unedose.fr/article/how-to-create-an-rss-feed-for-any-youtube-channel
 // https://www.youtube.com/feeds/videos.xml?channel_id=
 // Get ID https://stackoverflow.com/questions/14366648/how-can-i-get-a-channel-id-from-youtube
+// Get channels links
+// https://www.youtube.com/feed/channels
 
 fn main() {
     env_logger::init();
@@ -46,21 +28,44 @@ fn main() {
     // Set main variables, here are defaults
     let mut file_name = String::from("yt-rss.opml");
     let mut path_links: String = String::from("/tmp/links");
-    let mut path_download: String = String::from("./download");
+    let mut path_download: String = String::from("download");
     let mut requested_categories: Vec<String> = vec!["Main".to_string()];
     // yt-dlp default arguments
-    // yt-dlp -i --no-playlist -q --progress -f 'mp4,res:480' --sponsorblock-mark all --add-chapters
-   let mut yt_dlp_sett: Vec<String> = vec!["-i".to_string(), "--no-playlist".to_string(), "-q".to_string(), "--progress".to_string(), "-f".to_string(), "mp4,res:480".to_string(), "--sponsorblock-mark".to_string(), "all".to_string(), "--add-chapters".to_string()];
+    let mut yt_dlp_sett: Vec<String> = vec![
+        "-i".to_string(),
+        "--no-playlist".to_string(),
+        "-q".to_string(),
+        "--progress".to_string(),
+        "-f".to_string(),
+        "mp4,res:480".to_string(),
+        "--embed-thumbnail".to_string(),
+        "--sponsorblock-mark".to_string(),
+        "all".to_string(),
+        "--add-chapters".to_string(),
+    ];
 
-    
+    let mut time = Utc::today().and_hms(0, 0, 0);
+    let help_information: String = String::from("
+    arguments:    
+    --file-name [Path] - Specifies the path and file name to the OPML file
+    --links-directory [Path] - Specifies the path and folder name to where save XML files (rss information of specified channels)
+    --download-directory [Path] - Specifies the path and folder name to where save videos
+    --set-categories \"category1,category2,category3\" - Chooses from whot categories from OPML file download
+    --yt-dlp-arguments \"argument1,argument2,argument3\" - Specifies custom arguments for yt-dlp
+    --time \"YYYY,MM,DD\" - Specifies time that older than it, videos will be ignored and not downloaded
+    --channel-link [url] - Turns a yt channel link to a rss link to that channel. if xclip is installed, it puts it to clipboard. here is the easiest way to get those links: https://newpipe.net/FAQ/tutorials/import-export-data/#import-youtube
+    --help - shows this message");
+
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
     let path_links_argument: String = String::from("--links-directory"); // argument to choose where to store links
     let path_download_argument: String = String::from("--download-directory"); // argument to choose where to store videos
     let requested_categories_argument: String = String::from("--set-categories"); // argument to choose categories for links from the file
-    // after this argument there should be: "category1,category2,category3"
-    let yt_dlp_sett_arguments: String = String::from("--yt-dlp-arguments"); 
-    // This argument also usues "thing,thing1"
+                                                                                  // after this argument there should be: "category1,category2,category3"
+    let yt_dlp_sett_arguments: String = String::from("--yt-dlp-arguments"); // This argument also usues "thing,thing1"
+    let time_arguments: String = String::from("--time"); // This argument also usues "thing,thing1" also the syntax is YYYY-MM-DD
+    let channel_link_arguments: String = String::from("--channel-link");
+    let help_arguments: String = String::from("--help");
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -77,10 +82,36 @@ fn main() {
             path_download = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
         if cliarg == &requested_categories_argument {
-            requested_categories = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string()); // Parse "thing,thing1" to vector
+            requested_categories = functions::stringto_vector(
+                cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
+            ); // Parse "thing,thing1" to vector
         }
         if cliarg == &yt_dlp_sett_arguments {
-            yt_dlp_sett = functions::stringto_vector(cliarg_iter.clone().nth(count_iterator).unwrap().to_string()); // Parse "thing,thing1" to vector
+            yt_dlp_sett = functions::stringto_vector(
+                cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
+            ); // Parse "thing,thing1" to vector
+        }
+        if cliarg == &time_arguments {
+            let vector = functions::stringto_vector(
+                cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
+            );
+            time = Utc
+                .ymd(
+                    vector[0].parse::<i32>().unwrap(),
+                    vector[1].parse::<u32>().unwrap(),
+                    vector[2].parse::<u32>().unwrap(),
+                )
+                .and_hms(0, 0, 0); // time that after they will be
+        }
+        if cliarg == &channel_link_arguments {
+            let link: String = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
+            println!("The RSS link:");
+            println!("{}", functions::channel_link(link));
+            exit(9);
+        }
+        if cliarg == &help_arguments {
+            println!("{}", help_information);
+            exit(9);
         }
     }
 
@@ -88,7 +119,7 @@ fn main() {
     let mut file_to_struct = parse_opml::get_categories(file_name);
     //debug!("{:#?}", &file_to_struct);
     let links = parse_opml::unpack_categories(file_to_struct, requested_categories);
-    
+
     // Checking if links are good, becouse if not wget will get a loop
     let mut links_checked: Vec<String> = Vec::new();
     let mut links_broken: Vec<String> = Vec::new();
@@ -105,7 +136,5 @@ fn main() {
     functions::download_xml(links_checked, path_links.clone());
 
     // Download videos
-    download_videos(path_links, path_download, yt_dlp_sett);
-    
+    functions::download_videos(path_links, path_download, yt_dlp_sett, time);
 }
-

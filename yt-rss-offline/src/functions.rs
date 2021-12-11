@@ -1,18 +1,10 @@
-extern crate log;
 use opml::Outline;
 
 use log::info;
 use log::{debug, error, log_enabled, Level};
-use pretty_env_logger::env_logger;
-
-use opml::OPML;
-use std::fs::File;
-use std::thread::sleep;
 
 use std::io::stdout;
 use std::io::Write;
-
-use std::{thread, time, vec};
 
 use std::process::{exit, Command};
 
@@ -23,15 +15,13 @@ use std::path::Path;
 
 use feed_rs::parser;
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 
 use std::process::Stdio;
 
 use crossterm::style::Stylize;
-use crossterm::{
-    cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition},
-    execute, ExecutableCommand, Result,
-};
+
+use regex::Regex;
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -90,7 +80,7 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     let progress_90 = count_links * 90 / 100;
 
     // Check if wget exists
-    command_exists("wget".to_string());
+    command_exists("wget".to_string(), true);
 
     for link in links_checked {
         let process = Command::new("wget")
@@ -127,11 +117,13 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     env::set_current_dir(return_path);
 }
 
-pub fn command_exists(command: String) {
+pub fn command_exists(command: String, stop: bool) -> bool {
     let path_1: String = format!("/bin/{}", command);
     let path_2: String = format!("/usr/bin/{}", command);
     if Path::new(&path_1).exists() == true {
+        return true;
     } else if Path::new(&path_2).exists() == true {
+        return true;
     } else {
         output(
             2,
@@ -140,7 +132,11 @@ pub fn command_exists(command: String) {
             true,
             false,
         );
-        exit(9);
+        if stop == true {
+            exit(9);
+        } else {
+            return false;
+        }
     }
 }
 
@@ -162,7 +158,12 @@ fn progress_bar(string: &String, progres: i32) {
     stdout().flush();
 }
 
-pub fn download_videos(path_links: String, path_download: String, mut yt_dlp_sett: Vec<String>) {
+pub fn download_videos(
+    path_links: String,
+    path_download: String,
+    mut yt_dlp_sett: Vec<String>,
+    time: DateTime<Utc>,
+) {
     // Creating download directory
     let return_path = env::current_dir().unwrap(); // To use later to return to current directory
 
@@ -177,11 +178,9 @@ pub fn download_videos(path_links: String, path_download: String, mut yt_dlp_set
     //
 
     // Check if yt-dlp exists
-    command_exists("yt-dlp".to_string());
+    command_exists("yt-dlp".to_string(), true);
 
     // Reading xml files
-    let time = Utc.ymd(2021, 12, 1).and_hms(0, 0, 0); // time that after they will be
-                                                      //let time = Utc::today().and_hms(0, 0, 0);
 
     let dir_content = fs::read_dir(path_links).unwrap();
     for files in dir_content {
@@ -240,7 +239,7 @@ pub fn download_videos(path_links: String, path_download: String, mut yt_dlp_set
                     );
                     for link in &entry.links {
                         // Idk why its a vector but ok
-                        download_yt(&link.href, &yt_dlp_sett);
+                        download_yt(&link.href, yt_dlp_sett.clone());
                     }
 
                     output(
@@ -258,15 +257,16 @@ pub fn download_videos(path_links: String, path_download: String, mut yt_dlp_set
     env::set_current_dir(return_path);
 }
 
-fn download_yt(link: &String, mut arguments: &Vec<String>) {    
+fn download_yt(link: &String, mut arguments: Vec<String>) {
     arguments.push(link.clone());
     let mut process = Command::new("yt-dlp")
         .args(&*arguments)
         .stdin(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .expect("command failed to start");
-        
-    /* 
+
+    /* old
     let mut process = Command::new("yt-dlp")
         .args(&[
             "-i",
@@ -309,7 +309,7 @@ pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool, color
     } else if mark == 3 {
         letter_1 = " ".to_string();
         letter_2 = " ".to_string();
-        mark_letter = "".to_string();
+        mark_letter = " ".to_string();
     }
 
     if colored == true {
@@ -343,4 +343,43 @@ pub fn stringto_vector(string: String) -> Vec<String> {
         vector.push(split.to_string());
     }
     vector
+}
+
+pub fn channel_link(link: String) -> String {
+    let mut rss_link: String = String::new();
+    let return_path = env::current_dir().unwrap();
+    let file_name: String = String::from("yt_link");
+    env::set_current_dir("/tmp").is_ok();
+
+    if link.contains("www.youtube.com/channel/") == true || link.contains("www.youtube.com/watch") == true {
+        let process = Command::new("wget")
+            .args(&["-q", "-O", &file_name, &link])
+            .output()
+            .expect("wget command failed to start");
+
+        let contents = fs::read_to_string("yt_link").unwrap();
+
+        let regex = Regex::new(r"UC[-_0-9A-Za-z]{21}[AQgw]").unwrap();
+
+        let captured = regex.captures(&contents).unwrap();
+
+        let id_string = captured.get(0).map_or("", |m| m.as_str());
+        rss_link = "https://www.youtube.com/feeds/videos.xml?channel_id=".to_owned() + id_string;
+
+        if command_exists("xclip".to_string(), false) == true {
+            let command = format!("echo -n \"{}\" | xclip -selection clipboard", rss_link);
+            let mut process = Command::new("bash")
+                .args(&["-c", &command])
+                .spawn()
+                .expect("command failed to start");
+            let wait = process.wait();
+        }
+
+        fs::remove_file(file_name).unwrap();
+        env::set_current_dir(return_path);
+        rss_link
+    } else {
+        println!("Link to a channel needs to be build like: \"https://www.youtube.com/channel/\"");
+        String::new()
+    }
 }
