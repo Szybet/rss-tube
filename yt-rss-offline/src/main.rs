@@ -42,6 +42,8 @@ fn main() {
         "--sponsorblock-mark".to_string(),
         "all".to_string(),
         "--add-chapters".to_string(),
+        "--max-filesize".to_string(),
+        "1K".to_string(),
     ];
 
     let mut time = Utc::today().and_hms(0, 0, 0);
