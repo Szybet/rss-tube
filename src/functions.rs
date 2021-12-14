@@ -23,6 +23,10 @@ use crossterm::style::Stylize;
 
 use regex::Regex;
 
+use std::iter::FromIterator;
+
+use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
+
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
     links: Vec<String>,
@@ -68,7 +72,7 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     env::set_current_dir(&path_links).is_ok();
 
     let mut count_downloaded: usize = 0;
-    let count_links: usize = links_checked.iter().count() - 1;
+    let count_links: usize = links_checked.iter().count() - 1; // It fails if its 0!
     let progress_10 = count_links * 10 / 100;
     let progress_20 = count_links * 20 / 100;
     let progress_30 = count_links * 30 / 100;
@@ -249,21 +253,23 @@ pub fn download_videos(
                             // Blow up if the OS was unable to start the program
                             .unwrap();
                         // extract the raw bytes that we captured and interpret them as a string
-                        let stdout = String::from_utf8(process.stdout).unwrap();
-                        println!("{}", stdout);
+                        let mut stdout = String::from_utf8(process.stdout).unwrap();
+                        let video_time = string_to_time(stdout);
 
-                        // Make the repository cleaner! and update toml
+
 
                         download_yt(&link.href, yt_dlp_sett.clone());
-                    }
 
-                    output(
+
+                    output( // It goes only one time anyway
                         1,
                         &format!("Downloaded video: \"{}\"", video_tittle),
                         true,
                         true,
                         false,
                     );
+                    }
+
                 }
             }
         }
@@ -399,4 +405,17 @@ pub fn channel_link(link: String) -> String {
         println!("Link to a channel needs to be build like: \"https://www.youtube.com/channel/\"");
         String::new()
     }
+}
+
+pub fn string_to_time(string: String) {
+                        
+    let mut yt_duration_min: Vec<String> = Vec::from_iter(string.split(":").map(String::from));
+    println!("{:?}", yt_duration_min);
+    
+    
+    // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveTime.html#example
+    let t = NaiveTime::from_hms_milli(12, 34, 56, 789);
+
+
+
 }

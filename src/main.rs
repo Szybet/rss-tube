@@ -42,11 +42,12 @@ fn main() {
         "--sponsorblock-mark".to_string(),
         "all".to_string(),
         "--add-chapters".to_string(),
-        "--max-filesize".to_string(),
-        "1K".to_string(),
+        // It doesnt work with big files?
+        //"--max-filesize".to_string(),
+        // "1K".to_string(),
     ];
 
-    let mut time = Utc::today().and_hms(0, 0, 0);
+    let mut time = Utc::today().and_hms(0, 0, 0); // Date that videos older than it will be not downloaded
     let help_information: String = String::from("
     arguments:    
     --file-name [Path] - Specifies the path and file name to the OPML file
@@ -56,7 +57,10 @@ fn main() {
     --yt-dlp-arguments \"argument1,argument2,argument3\" - Specifies custom arguments for yt-dlp
     --time \"YYYY,MM,DD\" - Specifies time that older than it, videos will be ignored and not downloaded
     --channel-link [url] - Turns a yt channel link to a rss link to that channel. if xclip is installed, it puts it to clipboard. here is the easiest way to get those links: https://newpipe.net/FAQ/tutorials/import-export-data/#import-youtube
-    --help - shows this message");
+    --help - shows this message
+    --max-video-time - Specifies the maximum time of a video, in minutes");
+    let mut max_video_time: usize = 30; // Max video time in minutes
+
 
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
@@ -68,6 +72,7 @@ fn main() {
     let time_arguments: String = String::from("--time"); // This argument also usues "thing,thing1" also the syntax is YYYY-MM-DD
     let channel_link_arguments: String = String::from("--channel-link");
     let help_arguments: String = String::from("--help");
+    let max_video_time: String = String::from("");
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -119,7 +124,7 @@ fn main() {
 
     // Get XML links from file
     let mut file_to_struct = parse_opml::get_categories(file_name);
-    //debug!("{:#?}", &file_to_struct);
+    //println!("{:#?}", &file_to_struct);
     let links = parse_opml::unpack_categories(file_to_struct, requested_categories);
 
     // Checking if links are good, becouse if not wget will get a loop

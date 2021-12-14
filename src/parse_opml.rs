@@ -33,7 +33,7 @@ pub fn get_categories(file_name: String) -> category {
 
     let mut categories: category = file_loop(document, "Main".to_string());
 
-    //debug!("{:?}", categories);
+    //println!("{:#?}", categories);
 
     output(
         1,
