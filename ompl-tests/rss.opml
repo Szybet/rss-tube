@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<opml version="1.0">
+  <head>
+    <title>Liferea Feed List Export</title>
+  </head>
+  <body>
+    <outline title="1" text="1" description="1" type="atom" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCqzGLavT7stfyWMAfCXW-CA" htmlUrl=""/>
+  </body>
+</opml>
