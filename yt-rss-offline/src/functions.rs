@@ -239,6 +239,21 @@ pub fn download_videos(
                     );
                     for link in &entry.links {
                         // Idk why its a vector but ok
+
+                        let process = Command::new("yt-dlp")
+                            // Tell the OS to record the command's output
+                            .stdout(Stdio::piped())
+                            .args(["--get-duration", &link.href])
+                            // execute the command, wait for it to complete, then capture the output
+                            .output()
+                            // Blow up if the OS was unable to start the program
+                            .unwrap();
+                        // extract the raw bytes that we captured and interpret them as a string
+                        let stdout = String::from_utf8(process.stdout).unwrap();
+                        println!("{}", stdout);
+
+                        // Make the repository cleaner! and update toml
+
                         download_yt(&link.href, yt_dlp_sett.clone());
                     }
 
@@ -351,7 +366,9 @@ pub fn channel_link(link: String) -> String {
     let file_name: String = String::from("yt_link");
     env::set_current_dir("/tmp").is_ok();
 
-    if link.contains("www.youtube.com/channel/") == true || link.contains("www.youtube.com/watch") == true {
+    if link.contains("www.youtube.com/channel/") == true
+        || link.contains("www.youtube.com/watch") == true
+    {
         let process = Command::new("wget")
             .args(&["-q", "-O", &file_name, &link])
             .output()
