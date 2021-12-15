@@ -9,6 +9,8 @@ use std::fs::File;
 
 use crate::functions::output;
 
+use html_escape::decode_html_entities;
+
 // Gets categories from a OPML file
 #[derive(Debug, Clone)]
 pub struct category {
@@ -93,9 +95,10 @@ fn outlines_loop_categories(outlines: Vec<Outline>, category_name: String) -> ca
         match outline.r#type.clone() {
             Some(out_type) => {
                 if out_type == "category" || out_type == "folder" {
+                    let outline_text_decoded = decode_html_entities(&outline.text.clone()).to_string(); // In opml files characters are writed like this
                     categories.children.push(outlines_loop_categories(
                         outline.outlines.clone(),
-                        outline.text.clone(),
+                        outline_text_decoded,
                     ));
                 }
             }

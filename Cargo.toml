@@ -22,3 +22,6 @@ chrono = "0.4"
 
 regex = "1.5"
 #https://github.com/rust-lang/regex
+
+html-escape = "0.2.9"
+#https://crates.io/crates/html-escape // becouse in opml characters like ł are saved like this

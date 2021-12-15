@@ -72,7 +72,7 @@ fn main() {
     let time_arguments: String = String::from("--time"); // This argument also usues "thing,thing1" also the syntax is YYYY-MM-DD
     let channel_link_arguments: String = String::from("--channel-link");
     let help_arguments: String = String::from("--help");
-    let max_video_time: String = String::from("");
+    let max_video_time_arguments: String = String::from("--max-video-time");
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -120,6 +120,16 @@ fn main() {
             println!("{}", help_information);
             exit(9);
         }
+        if cliarg == &max_video_time_arguments {
+            let max_video_time_parse = cliarg_iter.clone().nth(count_iterator).unwrap().to_string().parse::<usize>();
+            match max_video_time_parse {
+                Ok(v) => max_video_time = v,
+                Err(e) => {
+                    println!("--max-video-time argument number couldnt be paused, exiting");
+                    exit(9);
+                },
+            }
+        }
     }
 
     // Get XML links from file
@@ -143,5 +153,5 @@ fn main() {
     functions::download_xml(links_checked, path_links.clone());
 
     // Download videos
-    functions::download_videos(path_links, path_download, yt_dlp_sett, time);
+    functions::download_videos(path_links, path_download, yt_dlp_sett, time, max_video_time);
 }

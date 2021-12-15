@@ -3,6 +3,7 @@ use opml::Outline;
 use log::info;
 use log::{debug, error, log_enabled, Level};
 
+use std::f32::consts::E;
 use std::io::stdout;
 use std::io::Write;
 
@@ -25,7 +26,9 @@ use regex::Regex;
 
 use std::iter::FromIterator;
 
-use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+
+use std::time::Duration;
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -167,6 +170,7 @@ pub fn download_videos(
     path_download: String,
     mut yt_dlp_sett: Vec<String>,
     time: DateTime<Utc>,
+    max_video_time: usize,
 ) {
     // Creating download directory
     let return_path = env::current_dir().unwrap(); // To use later to return to current directory
@@ -195,6 +199,7 @@ pub fn download_videos(
         let title = feed.title.unwrap().content;
         let status_channel: String =
             String::from(format!("Downloading videos for channel: \"{}\":", title));
+        let mut status_channel_bool: bool = false; // Variable to prevent showing status_channel twice
 
         let mut showed_beginning_status: bool = false;
         let return_path_download = env::current_dir().unwrap(); // To use later to return to download directory
@@ -212,17 +217,10 @@ pub fn download_videos(
                 .signed_duration_since(time)
                 .num_minutes();
             if duration > 0 {
-                if showed_beginning_status == false {
-                    // shows once the beginning ONLY if there are videos THAT are posted on specified time and need to be downloaded
-                    output(3, &status_channel, true, true, true);
-                    fs::create_dir_all(&title);
-                    env::set_current_dir(&title).is_ok(); // also create the directory once
-                    showed_beginning_status = true;
-                }
                 for video_title in entry.title {
                     let mut video_tittle: String = String::new();
                     let mut countit: usize = 0;
-                    let max_chars = 50; // There is a better way to do it counting how many characters a line in terminal fits
+                    let max_chars = 70; // There is a better way to do it counting how many characters a line in terminal fits
                     if &video_title.content.chars().count() > &max_chars {
                         for chars in video_title.content.chars() {
                             if countit < max_chars {
@@ -234,42 +232,65 @@ pub fn download_videos(
                     } else {
                         video_tittle = video_title.content.clone();
                     }
-                    output(
-                        0,
-                        &format!("Downloading video: \"{}\"", video_tittle),
-                        false,
-                        false,
-                        false,
-                    );
                     for link in &entry.links {
                         // Idk why its a vector but ok
 
                         let process = Command::new("yt-dlp")
-                            // Tell the OS to record the command's output
                             .stdout(Stdio::piped())
                             .args(["--get-duration", &link.href])
-                            // execute the command, wait for it to complete, then capture the output
                             .output()
-                            // Blow up if the OS was unable to start the program
                             .unwrap();
-                        // extract the raw bytes that we captured and interpret them as a string
                         let mut stdout = String::from_utf8(process.stdout).unwrap();
-                        let video_time = string_to_time(stdout);
+                        let video_duration_sec: usize = string_to_time(stdout);
 
+                        // *60 to turn it to sec
+                        if (max_video_time * 60) > video_duration_sec {
+                            if showed_beginning_status == false {
+                                // Its here becouse it would create directory but then the videos could be too long
+                                // shows once the beginning ONLY if there are videos THAT are posted on specified time and need to be downloaded
+                                if status_channel_bool == false {
+                                    output(3, &status_channel, true, true, true);
+                                    status_channel_bool = true;
+                                }
+                                fs::create_dir_all(&title);
+                                env::set_current_dir(&title).is_ok(); // also create the directory once
+                                showed_beginning_status = true;
+                            }
+                            if showed_beginning_status == true {
+                                // it will only show if showed_beginning_status is true so it will not say before status_channel
+                                output(
+                                    0,
+                                    &format!("Downloading video: \"{}\"", video_tittle),
+                                    false,
+                                    false,
+                                    false,
+                                );
+                            }
+                            download_yt(&link.href, yt_dlp_sett.clone());
 
-
-                        download_yt(&link.href, yt_dlp_sett.clone());
-
-
-                    output( // It goes only one time anyway
-                        1,
-                        &format!("Downloaded video: \"{}\"", video_tittle),
-                        true,
-                        true,
-                        false,
-                    );
+                            output(
+                                // It goes only one time anyway
+                                1,
+                                &format!("Downloaded video: \"{}\"", video_tittle),
+                                true,
+                                true,
+                                false,
+                            );
+                        } else {
+                            if status_channel_bool == false {
+                                output(3, &status_channel, true, true, true);
+                                status_channel_bool = true;
+                            }
+                            output(
+                                // It goes only one time anyway
+                                2,
+                                &format!("Video: \"{}\" is too long", video_tittle),
+                                true,
+                                true,
+                                false,
+                            );
+                        }
                     }
-
                 }
             }
         }
@@ -407,15 +428,50 @@ pub fn channel_link(link: String) -> String {
     }
 }
 
-pub fn string_to_time(string: String) {
-                        
-    let mut yt_duration_min: Vec<String> = Vec::from_iter(string.split(":").map(String::from));
-    println!("{:?}", yt_duration_min);
-    
-    
+pub fn string_to_time(string: String) -> usize {
+    let mut yt_duration = Vec::from_iter(string.split(":").map(&String::from));
+
+    // Thats becouse the last item has \n
+    let mut last_item = yt_duration.last().unwrap().replace("\n", "");
+    yt_duration.remove(yt_duration.iter().count() - 1);
+    yt_duration.push(last_item);
+    //
+
+    let mut seconds: usize = 0;
+    let mut minutes: usize = 0;
+    let mut hours: usize = 0;
+
+    seconds = vector_parse(&mut yt_duration);
+    minutes = vector_parse(&mut yt_duration);
+    hours = vector_parse(&mut yt_duration);
+
     // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveTime.html#example
-    let t = NaiveTime::from_hms_milli(12, 34, 56, 789);
+    // let mut time = Duration::new(seconds,0); // No becouse it only uses sec and nanosec
+    let time_sec: usize = (seconds) + (minutes * 60) + (hours * 60 * 60); // simplest but it works
+    time_sec
+}
 
+pub fn vector_parse(yt_duration: &mut Vec<String>) -> usize {
+    let mut output: usize = 0;
+    let last_iter = yt_duration.last().cloned();
+    let mut count_vector = yt_duration.iter().count();
+    if count_vector == 0 {
+        // If its 0, there are no items and it cant -1 becouse it will panic
+        return 0;
+    } else {
+        count_vector = count_vector - 1; // Becouse it counts items, and then it access it from 0
+        yt_duration.remove(count_vector);
 
-
+        match last_iter {
+            Some(out_type) => {
+                let output_result = out_type.parse::<usize>();
+                match output_result {
+                    Ok(v) => output = v,
+                    Err(e) => output = 0,
+                }
+            }
+            None => {}
+        }
+        output
+    }
 }
