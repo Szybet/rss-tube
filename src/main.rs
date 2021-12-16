@@ -47,6 +47,9 @@ fn main() {
         // "1K".to_string(),
     ];
 
+    // "-i,--no-playlist,-q,--progress,-f,mp4,res:480,--embed-thumbnail,--sponsorblock-mark,all,--add-chapters,--buffer-size,16k,--http-chunk-size,100M,"
+
+
     let mut time = Utc::today().and_hms(0, 0, 0); // Date that videos older than it will be not downloaded
     let help_information: String = String::from("
     arguments:    
@@ -55,12 +58,12 @@ fn main() {
     --download-directory [Path] - Specifies the path and folder name to where save videos
     --set-categories \"category1,category2,category3\" - Chooses from whot categories from OPML file download
     --yt-dlp-arguments \"argument1,argument2,argument3\" - Specifies custom arguments for yt-dlp
-    --time \"YYYY,MM,DD\" - Specifies time that older than it, videos will be ignored and not downloaded
-    --channel-link [url] - Turns a yt channel link to a rss link to that channel. if xclip is installed, it puts it to clipboard. here is the easiest way to get those links: https://newpipe.net/FAQ/tutorials/import-export-data/#import-youtube
+    --time \"YYYY,MM,DD,HH\" - Specifies time that older than it, videos will be ignored and not downloaded. HH means Hours of the day
+    --channel-link [url] - Turns a yt channel link to a rss link to that channel. if xclip is installed, it puts it to clipboard
     --help - shows this message
-    --max-video-time - Specifies the maximum time of a video, in minutes");
+    --max-video-time - Specifies the maximum time of a video, in minutes
+    --csv-to-opml - Converts the CSV file from youtube export subscription.csv file (  https://newpipe.net/FAQ/tutorials/import-export-data/#import-youtube ) to a opml file, ready to use. The syntax is: --csv-to-opml csv_file new_opml_file");
     let mut max_video_time: usize = 30; // Max video time in minutes
-
 
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
@@ -73,6 +76,7 @@ fn main() {
     let channel_link_arguments: String = String::from("--channel-link");
     let help_arguments: String = String::from("--help");
     let max_video_time_arguments: String = String::from("--max-video-time");
+    let convert_csv: String = String::from("--csv-to-opml"); // syntax: --csv-to-opml csv_file opml_file
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
@@ -108,7 +112,7 @@ fn main() {
                     vector[1].parse::<u32>().unwrap(),
                     vector[2].parse::<u32>().unwrap(),
                 )
-                .and_hms(0, 0, 0); // time that after they will be
+                .and_hms(vector[3].parse::<u32>().unwrap(), 0, 0); // time that after they will be
         }
         if cliarg == &channel_link_arguments {
             let link: String = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
@@ -129,6 +133,12 @@ fn main() {
                     exit(9);
                 },
             }
+        }
+        if cliarg == &convert_csv {
+            let csv_path: String = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
+            let opml_path: String = cliarg_iter.clone().nth(count_iterator + 1).unwrap().to_string();
+            functions::csv_to_opml(csv_path, opml_path);
+            exit(9);
         }
     }
 

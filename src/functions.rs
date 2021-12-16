@@ -7,7 +7,7 @@ use std::f32::consts::E;
 use std::io::stdout;
 use std::io::Write;
 
-use std::process::{exit, Command};
+use std::process::{exit, Command, id};
 
 use std::fs;
 
@@ -29,6 +29,13 @@ use std::iter::FromIterator;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 use std::time::Duration;
+
+use std::fs::File;
+
+use csv::{ByteRecord, StringRecord};
+use std::error::Error;
+
+use opml::OPML;
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -86,14 +93,15 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     let progress_80 = count_links * 80 / 100;
     let progress_90 = count_links * 90 / 100;
 
-    // Check if wget exists
-    command_exists("wget".to_string(), true);
-
+    let client = reqwest::blocking::Client::new();
     for link in links_checked {
-        let process = Command::new("wget")
-            .args(&["-q", &link])
-            .output()
-            .expect("wget command failed to start");
+        let get = client.get(&link).send().unwrap().bytes().unwrap();
+
+        let file_name = link.clone().replace("https://www.youtube.com/feeds/", "");
+
+        let mut file = File::create(file_name).unwrap();
+        file.write_all(&get).unwrap();
+
         count_downloaded = count_downloaded + 1;
         if count_downloaded == progress_10 {
             progress_bar(&download_information, 1)
@@ -393,9 +401,7 @@ pub fn channel_link(link: String) -> String {
     let file_name: String = String::from("yt_link");
     env::set_current_dir("/tmp").is_ok();
 
-    if link.contains("www.youtube.com/channel/") == true
-        || link.contains("www.youtube.com/watch") == true
-    {
+    if link.contains("www.youtube.com/watch") == true {
         let process = Command::new("wget")
             .args(&["-q", "-O", &file_name, &link])
             .output()
@@ -410,22 +416,30 @@ pub fn channel_link(link: String) -> String {
         let id_string = captured.get(0).map_or("", |m| m.as_str());
         rss_link = "https://www.youtube.com/feeds/videos.xml?channel_id=".to_owned() + id_string;
 
-        if command_exists("xclip".to_string(), false) == true {
-            let command = format!("echo -n \"{}\" | xclip -selection clipboard", rss_link);
-            let mut process = Command::new("bash")
-                .args(&["-c", &command])
-                .spawn()
-                .expect("command failed to start");
-            let wait = process.wait();
-        }
-
         fs::remove_file(file_name).unwrap();
         env::set_current_dir(return_path);
-        rss_link
+    } else if link.contains("www.youtube.com/channel/") == true {
+        // There is propably a better way to do this
+        let mut id_string: String = String::new();
+        if link.contains("https") == true {
+            id_string = link.replace("https://www.youtube.com/channel/", "");
+        } else {
+            id_string = link.replace("http://www.youtube.com/channel/", "");
+        }
+        rss_link = "https://www.youtube.com/feeds/videos.xml?channel_id=".to_owned() + &id_string;
     } else {
-        println!("Link to a channel needs to be build like: \"https://www.youtube.com/channel/\"");
-        String::new()
+        println!("Link to a channel needs to be build like: \"https://www.youtube.com/channel/\" and its build like : {}", link);
+        return String::new();
     }
+    if command_exists("xclip".to_string(), false) == true {
+        let command = format!("echo -n \"{}\" | xclip -selection clipboard", rss_link);
+        let mut process = Command::new("bash")
+            .args(&["-c", &command])
+            .spawn()
+            .expect("command failed to start");
+        let wait = process.wait();
+    }
+    rss_link
 }
 
 pub fn string_to_time(string: String) -> usize {
@@ -447,7 +461,13 @@ pub fn string_to_time(string: String) -> usize {
 
     // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveTime.html#example
     // let mut time = Duration::new(seconds,0); // No becouse it only uses sec and nanosec
-    let time_sec: usize = (seconds) + (minutes * 60) + (hours * 60 * 60); // simplest but it works
+    let mut time_sec: usize = (seconds) + (minutes * 60) + (hours * 60 * 60); // simplest but it works
+    if time_sec == 0 {
+        time_sec = 216000;
+        // If its 0 that means that video is a premiere, and then the downloader will create the directory but not download it
+        // Thats why its setting it to 60 Hours
+        // There is a better way to do this, maybe create the file, check if it exists then create directory and move it there
+    }
     time_sec
 }
 
@@ -473,5 +493,57 @@ pub fn vector_parse(yt_duration: &mut Vec<String>) -> usize {
             None => {}
         }
         output
+    }
+}
+
+pub fn csv_to_opml(csv_file_path: String, opml_file_path: String) {
+    let csv = File::open(csv_file_path);
+    match csv {
+        Ok(file) => {
+            if std::path::Path::new(&opml_file_path).exists() == true {
+                println!("file {} exists, exiting", opml_file_path);
+                exit(9);
+            }
+            let mut opml_file =
+                File::create(opml_file_path).expect("Failed to create opml file, exiting");
+
+            output(3, &"Parsing files:".to_string(), true, false, true);
+
+            let mut opml = OPML::default();
+            let mut rdr = csv::Reader::from_reader(file);
+            for result in rdr.records() {
+                match result {
+                    Ok(stri_rec) => {
+                        let byte_record = ByteRecord::from(stri_rec);
+                        let str_record = StringRecord::from_byte_record(byte_record)
+                            .expect("Failed to parse csv record to UTF");
+
+                        // 0 - ID
+                        // 1 - link
+                        // 2 - name
+                        // let idk = str_record.get(2).expect("CSV file record empty");
+
+                        let name = str_record.get(2).expect("CSV record is empty").to_string();
+                        let link = str_record.get(1).expect("CSV record is empty").to_string();
+                        let link = channel_link(link);
+                        if link.is_empty() == true {
+                            println!("exiting");
+                            exit(9);
+                        }
+                        opml.add_feed(&name, &link);
+                    }
+                    Err(e) => {
+                        println!("Error reading csv file: {} \n,exiting", e);
+                        exit(9);
+                    }
+                }
+            }
+            opml.to_writer(&mut opml_file).unwrap();
+            output(1, &"OPML file created".to_string(), true, false, false)
+        }
+        Err(e) => {
+            println!(".csv file not found, exiting");
+            exit(9);
+        }
     }
 }

@@ -25,3 +25,9 @@ regex = "1.5"
 
 html-escape = "0.2.9"
 #https://crates.io/crates/html-escape // becouse in opml characters like ł are saved like this
+
+reqwest = { version = "0.11.7", features = ["blocking"] }
+#https://docs.rs/reqwest/latest/reqwest/
+
+csv = "1.1.6"
+#https://crates.io/crates/csv
