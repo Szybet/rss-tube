@@ -1,9 +1,7 @@
-## rss-tube
+# rss-tube
 ### Rust CLI script to use youtube from RSS, download videos for later
 
 ###### Currently only tested on linux
-
----
 
 ## Features:
 - Fully offline
