@@ -1,3 +1,4 @@
+use crossterm::execute;
 use opml::Outline;
 
 use log::info;
@@ -7,7 +8,7 @@ use std::f32::consts::E;
 use std::io::stdout;
 use std::io::Write;
 
-use std::process::{exit, id, Command};
+use std::process::{exit, id, Command, Output};
 
 use std::fs;
 
@@ -38,6 +39,16 @@ use std::error::Error;
 use opml::OPML;
 
 use std::str;
+
+use std::io::Read;
+
+use std::io::BufRead;
+use std::io::BufReader;
+
+use crossterm::cursor::*;
+use crossterm::terminal::Clear;
+use crossterm::terminal::ClearType;
+use crossterm::terminal::ClearType::CurrentLine;
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -148,14 +159,14 @@ pub fn command_exists(command: String, stop: bool) -> bool {
     } else if Path::new(&path_2).exists() == true {
         return true;
     } else {
-        output(
-            2,
-            &format!("Command {} not found", &command),
-            true,
-            true,
-            false,
-        );
         if stop == true {
+            output(
+                2,
+                &format!("Command {} not found", &command),
+                true,
+                true,
+                false,
+            );
             exit(9);
         } else {
             return false;
@@ -208,17 +219,22 @@ pub fn download_videos(
 
     let dir_content = fs::read_dir(path_links).expect("Failed to read directory with xml files");
     for files in dir_content {
-        let file_name = files.expect("failed to get path to XML files, the directory is propably empty").path();
+        let file_name = files
+            .expect("failed to get path to XML files, the directory is propably empty")
+            .path();
         debug!("xml files: {:?}", file_name);
         let xml_file = fs::read_to_string(file_name).expect("failed to read file");
         let feed = parser::parse(xml_file.as_bytes()).expect("failed to parse xml file");
-        let title = feed.title.expect("failed to get tittl from xml file").content;
+        let title = feed
+            .title
+            .expect("failed to get tittl from xml file")
+            .content;
         let status_channel: String =
             String::from(format!("Downloading videos for channel: \"{}\":", title));
         let mut status_channel_bool: bool = false; // Variable to prevent showing status_channel twice
 
         let mut showed_beginning_status: bool = false;
-        let return_path_download = env::current_dir().expect("Failed to get current directory");        ; // To use later to return to download directory
+        let return_path_download = env::current_dir().expect("Failed to get current directory"); // To use later to return to download directory
         for entry in feed.entries {
             //debug!("{:?}", entry.links);
             //debug!("{:?}", entry.published);
@@ -236,7 +252,7 @@ pub fn download_videos(
                 for video_title in entry.title {
                     let mut video_tittle: String = String::new();
                     let mut countit: usize = 0;
-                    let max_chars = 70; // There is a better way to do it counting how many characters a line in terminal fits
+                    let max_chars = 40; // There is a better way to do it counting how many characters a line in terminal fits
                     if &video_title.content.chars().count() > &max_chars {
                         for chars in video_title.content.chars() {
                             if countit < max_chars {
@@ -250,17 +266,23 @@ pub fn download_videos(
                     }
                     for link in &entry.links {
                         // Idk why its a vector but ok
+                        let mut stdout_duration =
+                            download_yt(&link.href, vec!["--get-duration".to_string()], true)
+                                .expect("getting duration of video");
+                        let video_duration_sec: usize = string_to_time(stdout_duration);
 
-                        let process = Command::new("yt-dlp")
-                            .stdout(Stdio::piped())
-                            .args(["--get-duration", &link.href])
-                            .output()
-                            .expect("failed to start yt-dlp");
-                        let mut stdout = String::from_utf8(process.stdout).expect("failed to get string of video duration using yt-dlp");
-                        let video_duration_sec: usize = string_to_time(stdout);
 
-                        // *60 to turn it to sec
-                        if (max_video_time * 60) > video_duration_sec {
+                        // max_video_time is already turned to seconds
+                        let mut video_time_accept: bool = false;
+                        let mut is_future: bool = false;
+                        if max_video_time > video_duration_sec {
+                            video_time_accept = true;
+                        }
+                        if video_duration_sec == 0 { // This means its in the future ( premieres )
+                            video_time_accept = false;
+                        }
+
+                        if video_time_accept == true {
                             if showed_beginning_status == false {
                                 // Its here becouse it would create directory but then the videos could be too long
                                 // shows once the beginning ONLY if there are videos THAT are posted on specified time and need to be downloaded
@@ -277,13 +299,15 @@ pub fn download_videos(
                                 output(
                                     0,
                                     &format!("Downloading video: \"{}\"", video_tittle),
-                                    false,
-                                    false,
+                                    true,
+                                    true,
                                     false,
                                 );
                             }
-                            download_yt(&link.href, yt_dlp_sett.clone());
+                            download_yt(&link.href, yt_dlp_sett.clone(), false);
 
+                            execute!(stdout(), MoveUp(1), Clear(ClearType::CurrentLine)); // Goes up and clears up the Downloading video: message to overwrite it
+                            
                             output(
                                 // It goes only one time anyway
                                 1,
@@ -297,10 +321,17 @@ pub fn download_videos(
                                 output(3, &status_channel, true, true, true);
                                 status_channel_bool = true;
                             }
+                            let mut video_error_status: String = String::new();
+                            if is_future == true {
+                                video_error_status = "Video is a premiere, in the future".to_string();
+                            } else {
+                                video_error_status = format!("Video: {} is too long ({} minutes)", video_tittle, (video_duration_sec / 60));
+                            }
+
                             output(
                                 // It goes only one time anyway
                                 2,
-                                &format!("Video: \"{}\" is too long", video_tittle),
+                                &video_error_status,
                                 true,
                                 true,
                                 false,
@@ -315,35 +346,52 @@ pub fn download_videos(
     env::set_current_dir(return_path);
 }
 
-fn download_yt(link: &String, mut arguments: Vec<String>) {
+/// process_output_bool = false -> does not output a "output process", but it does output text to the terminal
+///
+/// ---
+///
+/// process_output_bool = true -> returns string with stdout and does output() the stderr
+fn download_yt(
+    link: &String,
+    mut arguments: Vec<String>,
+    process_output_bool: bool,
+) -> Option<String> {
     arguments.push(link.clone());
-    let mut process = Command::new("yt-dlp")
-        .args(&*arguments)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("command failed to start");
+    if process_output_bool == false {
+        let mut process = Command::new("yt-dlp")
+            .args(&*arguments)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("command failed to start");
+        process.wait();
+        return None;
+    } else {
+        let mut process = Command::new("yt-dlp")
+            .args(&*arguments)
+            .stdin(Stdio::null())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("command failed to start");
 
-    /* old
-    let mut process = Command::new("yt-dlp")
-        .args(&[
-            "-i",
-            "--no-playlist",
-            "-q",
-            "--no-simulate",
-            "--progress",
-            "-f",
-            "mp4,res:480",
-            "--sponsorblock-mark",
-            "all",
-            "--add-chapters",
-            &link,
-        ])
-        .stdin(Stdio::null())
-        .spawn()
-        .expect("command failed to start");
-        */
-    process.wait();
+        let process_output = process
+            .wait_with_output()
+            .expect("failed too wait for process yt-dlp");
+
+        if process_output.stderr.is_empty() == false {
+            let error =
+                str::from_utf8(&process_output.stderr).expect("failed to convert stderr to string");
+            println!("{}", error);
+        }
+
+        let string_to_option = str::from_utf8(&process_output.stdout)
+            .expect("failed to convert stdout to string")
+            .to_string();
+        let mut return_option: Option<String> = None;
+        Option::insert(&mut return_option, string_to_option);
+        return return_option;
+    }
 }
 
 pub fn output(mark: i8, string: &String, new_line: bool, begin_line: bool, colored: bool) {
@@ -405,7 +453,7 @@ pub fn stringto_vector(string: String) -> Vec<String> {
 
 pub fn channel_link(link: String) -> String {
     let mut rss_link: String = String::new();
-    let return_path = env::current_dir().expect("Failed to get current directory");;
+    let return_path = env::current_dir().expect("Failed to get current directory");
     let file_name: String = String::from("yt_link");
     env::set_current_dir("/tmp").is_ok();
 
@@ -421,7 +469,9 @@ pub fn channel_link(link: String) -> String {
 
         let regex = Regex::new(r"UC[-_0-9A-Za-z]{21}[AQgw]").expect("wrong regex expression");
 
-        let captured = regex.captures(&contents).expect("failed to capture with regex");
+        let captured = regex
+            .captures(&contents)
+            .expect("failed to capture with regex");
 
         let id_string = captured.get(0).map_or("", |m| m.as_str());
         rss_link = "https://www.youtube.com/feeds/videos.xml?channel_id=".to_owned() + id_string;
@@ -472,15 +522,8 @@ pub fn string_to_time(string: String) -> usize {
     minutes = vector_parse(&mut yt_duration);
     hours = vector_parse(&mut yt_duration);
 
-    // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveTime.html#example
     // let mut time = Duration::new(seconds,0); // No becouse it only uses sec and nanosec
     let mut time_sec: usize = (seconds) + (minutes * 60) + (hours * 60 * 60); // simplest but it works
-    if time_sec == 0 {
-        time_sec = 216000;
-        // If its 0 that means that video is a premiere, and then the downloader will create the directory but not download it
-        // Thats why its setting it to 60 Hours
-        // There is a better way to do this, maybe create the file, check if it exists then create directory and move it there
-    }
     time_sec
 }
 

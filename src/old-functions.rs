@@ -54,3 +54,23 @@ pub fn get_links_file(file_name: String) -> Vec<String> {
     debug!("links xml: {:?}", links);
     links
 }
+
+/* old
+    let mut process = Command::new("yt-dlp")
+        .args(&[
+            "-i",
+            "--no-playlist",
+            "-q",
+            "--no-simulate",
+            "--progress",
+            "-f",
+            "mp4,res:480",
+            "--sponsorblock-mark",
+            "all",
+            "--add-chapters",
+            &link,
+        ])
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("command failed to start");
+*/

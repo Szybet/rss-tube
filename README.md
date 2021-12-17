@@ -39,6 +39,12 @@
 - Add windows support
 - write categories as folders in download folders
 - show available categories from file
-- error to wrong arguments
 - more default yt-dlp arguments like --quality --memory_low
 - less .clone() etc.
+- interactive mode ( download this video yes/no)
+- last usage save to config file ( to restore on exact hour )
+- better formatting ( calculating chars and line capacity)
+
+---
+
+### Contrubiting, Feature requests, Suggestions are welcome 

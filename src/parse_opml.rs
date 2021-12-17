@@ -21,9 +21,8 @@ pub struct category {
 
 // Main function for parsing the OPML file to a tree structure
 pub fn get_categories(file_name: String) -> category {
-    println!("{}", file_name);
-    let mut file = File::open(file_name.clone()).unwrap();
-    let document = OPML::from_reader(&mut file).unwrap();
+    let mut file = File::open(file_name.clone()).expect("failed to open OPML file");
+    let document = OPML::from_reader(&mut file).expect("failed to parse OPML file");
     let out_string: String = "Getting categories from".to_string();
     output(
         0,

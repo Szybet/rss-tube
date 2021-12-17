@@ -62,8 +62,8 @@ fn main() {
     --channel-link [url] - Turns a yt channel link to a rss link to that channel. if xclip is installed, it puts it to clipboard
     --help - shows this message
     --max-video-time - Specifies the maximum time of a video, in minutes
-    --csv-to-opml - Converts the CSV file from youtube export subscription.csv file (  https://newpipe.net/FAQ/tutorials/import-export-data/#import-youtube ) to a opml file, ready to use. The syntax is: --csv-to-opml csv_file new_opml_file");
-    let mut max_video_time: usize = 30; // Max video time in minutes
+    --csv-to-opml - Converts the CSV file from youtube export subscription.csv file to a opml file, ready to use. The syntax is: --csv-to-opml csv_file new_opml_file");
+    let mut max_video_time: usize = 30 * 60; // Max video time in minutes
 
     // Set command line arguments "catchers"
     let file_name_argument: String = String::from("--file-name"); // argument to choose file
@@ -80,29 +80,38 @@ fn main() {
 
     // run through given arguments
     let mut count_iterator: usize = 0; // This variable check whot position is the iterator. there are better ways to do this
+    let mut none_arguments = true;
     for cliarg in cliarg_iter.clone() {
-        // To many clone()
+        // To many clone() :/
+
+
         count_iterator = count_iterator + 1;
         if cliarg == &file_name_argument {
+            none_arguments = false;
             file_name = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
         if cliarg == &path_links_argument {
+            none_arguments = false;
             path_links = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
         if cliarg == &path_download_argument {
+            none_arguments = false;
             path_download = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
         }
         if cliarg == &requested_categories_argument {
+            none_arguments = false;
             requested_categories = functions::stringto_vector(
                 cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
             ); // Parse "thing,thing1" to vector
         }
         if cliarg == &yt_dlp_sett_arguments {
+            none_arguments = false;
             yt_dlp_sett = functions::stringto_vector(
                 cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
             ); // Parse "thing,thing1" to vector
         }
         if cliarg == &time_arguments {
+            none_arguments = false;
             let vector = functions::stringto_vector(
                 cliarg_iter.clone().nth(count_iterator).unwrap().to_string(),
             );
@@ -115,19 +124,22 @@ fn main() {
                 .and_hms(vector[3].parse::<u32>().unwrap(), 0, 0); // time that after they will be
         }
         if cliarg == &channel_link_arguments {
+            none_arguments = false;
             let link: String = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
             println!("The RSS link:");
             println!("{}", functions::channel_link(link));
             exit(9);
         }
         if cliarg == &help_arguments {
+            none_arguments = false;
             println!("{}", help_information);
             exit(9);
         }
         if cliarg == &max_video_time_arguments {
+            none_arguments = false;
             let max_video_time_parse = cliarg_iter.clone().nth(count_iterator).unwrap().to_string().parse::<usize>();
             match max_video_time_parse {
-                Ok(v) => max_video_time = v,
+                Ok(v) => max_video_time = v * 60, // turn it here into seconds
                 Err(e) => {
                     println!("--max-video-time argument number couldnt be paused, exiting");
                     exit(9);
@@ -135,11 +147,19 @@ fn main() {
             }
         }
         if cliarg == &convert_csv {
+            none_arguments = false;
             let csv_path: String = cliarg_iter.clone().nth(count_iterator).unwrap().to_string();
             let opml_path: String = cliarg_iter.clone().nth(count_iterator + 1).unwrap().to_string();
             functions::csv_to_opml(csv_path, opml_path);
             exit(9);
         }
+    }
+
+    // If 0 arguments supplied, or they are wrong show the help message
+    if none_arguments == true {
+        println!("  0 arguments supplied, or they are valid. showing help message:");
+        println!("{}", help_information);
+        exit(9);
     }
 
     // Get XML links from file
