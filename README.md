@@ -1,6 +1,8 @@
 ## rss-tube
 ### Rust CLI script to use youtube from RSS, download videos for later
 
+###### Currently only tested on linux
+
 ---
 
 ## Features:
@@ -30,3 +32,13 @@
 - --help - shows this message
 - --max-video-time - Specifies the maximum time of a video, in minutes
 - --csv-to-opml [csv_file] [new_opml_file] - Converts the CSV file from youtube export subscription.csv file to a opml file, ready to use with this program. The syntax is: --csv-to-opml csv_file new_opml_file"
+
+---
+
+## Things to be added in the future:
+- Add windows support
+- write categories as folders in download folders
+- show available categories from file
+- error to wrong arguments
+- more default yt-dlp arguments like --quality --memory_low
+- less .clone() etc.
