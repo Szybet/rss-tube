@@ -7,7 +7,7 @@ use std::f32::consts::E;
 use std::io::stdout;
 use std::io::Write;
 
-use std::process::{exit, Command, id};
+use std::process::{exit, id, Command};
 
 use std::fs;
 
@@ -36,6 +36,8 @@ use csv::{ByteRecord, StringRecord};
 use std::error::Error;
 
 use opml::OPML;
+
+use std::str;
 
 // validates link in a file and prints out vectors with links_checked, links_broken and links_error if an error accured
 pub fn validate_links(
@@ -71,7 +73,8 @@ pub fn validate_links(
 pub fn download_xml(links_checked: Vec<String>, path_links: String) {
     // Downloading links from file
     let download_information: String = String::from("XML Download progress");
-    let return_path = env::current_dir().unwrap(); // To use later to return to current directory
+    let return_path = env::current_dir()
+        .expect("current directory does not exist or there are no privileges for it"); // To use later to return to current directory
 
     if Path::new(&path_links).exists() == true {
         fs::remove_dir_all(&path_links);
@@ -95,12 +98,17 @@ pub fn download_xml(links_checked: Vec<String>, path_links: String) {
 
     let client = reqwest::blocking::Client::new();
     for link in links_checked {
-        let get = client.get(&link).send().unwrap().bytes().unwrap();
+        let get = client
+            .get(&link)
+            .send()
+            .expect("Failed downloading xml files")
+            .bytes()
+            .expect("failed converting HTTP get to bytes");
 
         let file_name = link.clone().replace("https://www.youtube.com/feeds/", "");
 
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(&get).unwrap();
+        let mut file = File::create(file_name).expect("failed to create XML file");
+        file.write_all(&get).expect("failed to write to XML file");
 
         count_downloaded = count_downloaded + 1;
         if count_downloaded == progress_10 {
@@ -181,7 +189,7 @@ pub fn download_videos(
     max_video_time: usize,
 ) {
     // Creating download directory
-    let return_path = env::current_dir().unwrap(); // To use later to return to current directory
+    let return_path = env::current_dir().expect("Failed to get current directory"); // To use later to return to current directory
 
     if Path::new(&path_download).exists() == true {
         // this deletes the download directory !
@@ -198,19 +206,19 @@ pub fn download_videos(
 
     // Reading xml files
 
-    let dir_content = fs::read_dir(path_links).unwrap();
+    let dir_content = fs::read_dir(path_links).expect("Failed to read directory with xml files");
     for files in dir_content {
-        let file_name = files.unwrap().path();
+        let file_name = files.expect("failed to get path to XML files, the directory is propably empty").path();
         debug!("xml files: {:?}", file_name);
-        let xml_file = fs::read_to_string(file_name).unwrap();
-        let feed = parser::parse(xml_file.as_bytes()).unwrap();
-        let title = feed.title.unwrap().content;
+        let xml_file = fs::read_to_string(file_name).expect("failed to read file");
+        let feed = parser::parse(xml_file.as_bytes()).expect("failed to parse xml file");
+        let title = feed.title.expect("failed to get tittl from xml file").content;
         let status_channel: String =
             String::from(format!("Downloading videos for channel: \"{}\":", title));
         let mut status_channel_bool: bool = false; // Variable to prevent showing status_channel twice
 
         let mut showed_beginning_status: bool = false;
-        let return_path_download = env::current_dir().unwrap(); // To use later to return to download directory
+        let return_path_download = env::current_dir().expect("Failed to get current directory");        ; // To use later to return to download directory
         for entry in feed.entries {
             //debug!("{:?}", entry.links);
             //debug!("{:?}", entry.published);
@@ -221,7 +229,7 @@ pub fn download_videos(
 
             let duration = entry
                 .published
-                .unwrap()
+                .expect("failed to compare dates")
                 .signed_duration_since(time)
                 .num_minutes();
             if duration > 0 {
@@ -247,8 +255,8 @@ pub fn download_videos(
                             .stdout(Stdio::piped())
                             .args(["--get-duration", &link.href])
                             .output()
-                            .unwrap();
-                        let mut stdout = String::from_utf8(process.stdout).unwrap();
+                            .expect("failed to start yt-dlp");
+                        let mut stdout = String::from_utf8(process.stdout).expect("failed to get string of video duration using yt-dlp");
                         let video_duration_sec: usize = string_to_time(stdout);
 
                         // *60 to turn it to sec
@@ -397,26 +405,28 @@ pub fn stringto_vector(string: String) -> Vec<String> {
 
 pub fn channel_link(link: String) -> String {
     let mut rss_link: String = String::new();
-    let return_path = env::current_dir().unwrap();
+    let return_path = env::current_dir().expect("Failed to get current directory");;
     let file_name: String = String::from("yt_link");
     env::set_current_dir("/tmp").is_ok();
 
     if link.contains("www.youtube.com/watch") == true {
-        let process = Command::new("wget")
-            .args(&["-q", "-O", &file_name, &link])
-            .output()
-            .expect("wget command failed to start");
+        let get = reqwest::blocking::get(&link)
+            .expect("failed to download site")
+            .bytes()
+            .expect("failed converting HTTP get to bytes");
 
-        let contents = fs::read_to_string("yt_link").unwrap();
+        let contents: String = str::from_utf8(&get)
+            .expect("failed to convert bytes to string from downloaded yt file")
+            .to_string();
 
-        let regex = Regex::new(r"UC[-_0-9A-Za-z]{21}[AQgw]").unwrap();
+        let regex = Regex::new(r"UC[-_0-9A-Za-z]{21}[AQgw]").expect("wrong regex expression");
 
-        let captured = regex.captures(&contents).unwrap();
+        let captured = regex.captures(&contents).expect("failed to capture with regex");
 
         let id_string = captured.get(0).map_or("", |m| m.as_str());
         rss_link = "https://www.youtube.com/feeds/videos.xml?channel_id=".to_owned() + id_string;
 
-        fs::remove_file(file_name).unwrap();
+        fs::remove_file(file_name).expect("failed to remove downloaded file");
         env::set_current_dir(return_path);
     } else if link.contains("www.youtube.com/channel/") == true {
         // There is propably a better way to do this
@@ -446,7 +456,10 @@ pub fn string_to_time(string: String) -> usize {
     let mut yt_duration = Vec::from_iter(string.split(":").map(&String::from));
 
     // Thats becouse the last item has \n
-    let mut last_item = yt_duration.last().unwrap().replace("\n", "");
+    let mut last_item = yt_duration
+        .last()
+        .expect("failed to get last item from vector yt_duration")
+        .replace("\n", "");
     yt_duration.remove(yt_duration.iter().count() - 1);
     yt_duration.push(last_item);
     //
@@ -538,7 +551,8 @@ pub fn csv_to_opml(csv_file_path: String, opml_file_path: String) {
                     }
                 }
             }
-            opml.to_writer(&mut opml_file).unwrap();
+            opml.to_writer(&mut opml_file)
+                .expect("failed to write to opml file");
             output(1, &"OPML file created".to_string(), true, false, false)
         }
         Err(e) => {
