@@ -267,7 +267,7 @@ pub fn download_videos(
                     for link in &entry.links {
                         // Idk why its a vector but ok
                         let mut stdout_duration =
-                            download_yt(&link.href, vec!["--get-duration".to_string()], true)
+                            download_yt(&link.href, vec!["--get-duration".to_string()], true, false)
                                 .expect("getting duration of video");
                         let video_duration_sec: usize = string_to_time(stdout_duration);
 
@@ -279,6 +279,7 @@ pub fn download_videos(
                             video_time_accept = true;
                         }
                         if video_duration_sec == 0 { // This means its in the future ( premieres )
+                            is_future = true;
                             video_time_accept = false;
                         }
 
@@ -304,7 +305,7 @@ pub fn download_videos(
                                     false,
                                 );
                             }
-                            download_yt(&link.href, yt_dlp_sett.clone(), false);
+                            download_yt(&link.href, yt_dlp_sett.clone(), false, true);
 
                             execute!(stdout(), MoveUp(1), Clear(ClearType::CurrentLine)); // Goes up and clears up the Downloading video: message to overwrite it
                             
@@ -323,10 +324,11 @@ pub fn download_videos(
                             }
                             let mut video_error_status: String = String::new();
                             if is_future == true {
-                                video_error_status = "Video is a premiere, in the future".to_string();
+                                video_error_status = format!("Video: {} is in the future", video_tittle);
                             } else {
                                 video_error_status = format!("Video: {} is too long ({} minutes)", video_tittle, (video_duration_sec / 60));
                             }
+
 
                             output(
                                 // It goes only one time anyway
@@ -355,6 +357,7 @@ fn download_yt(
     link: &String,
     mut arguments: Vec<String>,
     process_output_bool: bool,
+    output_stderr: bool,
 ) -> Option<String> {
     arguments.push(link.clone());
     if process_output_bool == false {
@@ -382,7 +385,9 @@ fn download_yt(
         if process_output.stderr.is_empty() == false {
             let error =
                 str::from_utf8(&process_output.stderr).expect("failed to convert stderr to string");
-            println!("{}", error);
+            if output_stderr == true {
+                println!("{}", error);
+            }
         }
 
         let string_to_option = str::from_utf8(&process_output.stdout)
